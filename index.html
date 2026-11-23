@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Seguimiento de Materias · Profesorado de Ciencias Biológicas UNLP</title>
+
+  <meta name="description" content="Mapa interactivo de seguimiento de materias, notas y correlativas para el Profesorado de Ciencias Biológicas (FaHCE · UNLP · Plan 2003).">
+  <meta name="theme-color" content="#064e3b">
+
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Blueprint Grid Pattern -->
+  <div class="blueprint-grid" aria-hidden="true"></div>
+
+  <div class="app-container">
+    <!-- =========================================================================
+         CANVAS HEADER: Blueprint Metadata & Telemetry Overlay
+         ========================================================================= -->
+    <header class="canvas-header">
+      <div class="brand-group">
+        <div class="brand-emblem" aria-hidden="true" title="Profesorado de Ciencias Biológicas · FaHCE · UNLP">
+          🧬
+        </div>
+        <div class="brand-block">
+          <span class="brand-meta">UNLP · FaHCE · Cód. 012</span>
+          <div class="brand-title">
+            <span>Profesorado de Ciencias Biológicas</span>
+            <span class="brand-badge" title="Plan de estudios 2003 con adecuaciones Res. 227/12 y 1453/18">Plan 2003</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- HUD Telemetry directly written on the canvas -->
+      <div class="hud-telemetry">
+        <!-- Promedio -->
+        <div class="hud-item" id="hudGpaContainer" title="Promedio general sobre materias aprobadas con nota">
+          <span class="hud-label">Promedio General</span>
+          <div class="hud-value highlight-gpa">
+            <span id="hudGpa">0.00</span>
+            <span class="hud-sub">/ 10</span>
+          </div>
+        </div>
+
+        <!-- Avance -->
+        <div class="hud-item" id="hudAvanceContainer" title="Porcentaje de materias aprobadas sobre el total de la carrera">
+          <span class="hud-label">Avance de Carrera</span>
+          <div class="hud-value">
+            <span id="hudAvance">0.0%</span>
+            <span class="hud-sub" id="hudMateriasRatio">(0/29)</span>
+          </div>
+        </div>
+
+        <!-- Interactive State Filter Legend with Integrated Live Counters -->
+        <div class="hud-legend" role="group" aria-label="Filtros por estado de materia">
+          <button type="button" class="legend-chip" data-filter="aprobada" title="Clic para filtrar materias aprobadas">
+            <span class="dot dot-aprobada"></span> Aprobadas <span class="chip-count" id="chipAprobadas">0</span>
+          </button>
+          <button type="button" class="legend-chip" data-filter="en_curso" title="Clic para filtrar materias en curso">
+            <span class="dot dot-en-curso"></span> En curso <span class="chip-count" id="chipEnCurso">0</span>
+          </button>
+          <button type="button" class="legend-chip" data-filter="cursada_aprobada" title="Clic para filtrar materias con cursada aprobada">
+            <span class="dot dot-cursada"></span> Cursadas <span class="chip-count" id="chipCursada">0</span>
+          </button>
+          <button type="button" class="legend-chip" data-filter="pendiente" title="Clic para filtrar materias pendientes">
+            <span class="dot dot-pendiente"></span> Pendientes <span class="chip-count" id="chipPendientes">29</span>
+          </button>
+          <button type="button" class="legend-chip" data-filter="recursa" title="Clic para filtrar materias recursadas">
+            <span class="square-fail"></span> Recursa <span class="chip-count" id="chipRecursa">0</span>
+          </button>
+        </div>
+
+        <!-- Data Sync Actions: Backup JSON / Import JSON or Guaraní / Reset -->
+        <div class="hud-actions" role="group" aria-label="Gestión de notas y respaldo">
+          <button type="button" class="hud-action-btn" id="btnExportNotes" title="Guardar respaldo de notas y estados en un archivo JSON">
+            <span class="hud-action-icon">💾</span> Respaldo
+          </button>
+          <label class="hud-action-btn" id="btnImportNotesLabel" title="Cargar respaldo JSON o Historia Académica de SIU Guaraní (PDF, XLS, CSV)">
+            <span class="hud-action-icon">⬆</span> Cargar
+            <input type="file" id="inputImportNotes" accept=".json,application/json,.pdf,.xls,.xlsx,.csv,.tsv,.txt" style="display: none;">
+          </label>
+          <button type="button" class="hud-action-btn hud-action-btn-danger" id="btnResetNotes" title="Borrar todas las notas y restablecer el seguimiento">
+            <span class="hud-action-icon">↺</span> Borrar
+          </button>
+        </div>
+      </div>
+
+      <!-- Responsive Side Menu Trigger -->
+      <button type="button" class="nav-menu-toggle" id="btnToggleSideMenu" aria-label="Abrir menú de controles y filtros" title="Menú de controles y filtros">
+        <span class="nav-menu-bars" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </span>
+      </button>
+    </header>
+
+    <!-- =========================================================================
+         MAP VIEWPORT: 5 Years + Idiomas Matrix with Full Viewport Fit
+         ========================================================================= -->
+    <main class="map-viewport" id="mapViewport">
+      <div class="graph-canvas" id="graphCanvas">
+        <!-- SVG Connecting Wires Canvas -->
+        <svg id="connectionsSvg" aria-hidden="true">
+          <defs>
+            <marker id="arrow-anc" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 2 L 7 5 L 0 8 z" fill="#4f46e5" />
+            </marker>
+            <marker id="arrow-desc" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 2 L 7 5 L 0 8 z" fill="#0d9488" />
+            </marker>
+          </defs>
+        </svg>
+
+        <!-- Year Column Labels Header Bar: 5 Años + Idiomas -->
+        <div class="years-timeline-bar" id="timelineBar">
+          <div class="year-col-header"><div class="year-col-top"><span class="col-year-tag">CICLO INICIAL</span><span class="col-sem-num">1º AÑO</span></div><div class="year-col-sub"><span>1º CUAT.</span><span>2º CUAT.</span></div></div>
+          <div class="year-col-header"><div class="year-col-top"><span class="col-year-tag">CICLO BÁSICO</span><span class="col-sem-num">2º AÑO</span></div><div class="year-col-sub"><span>1º CUAT.</span><span>2º CUAT.</span></div></div>
+          <div class="year-col-header"><div class="year-col-top"><span class="col-year-tag">CICLO INTERMEDIO</span><span class="col-sem-num">3º AÑO</span></div><div class="year-col-sub"><span>1º CUAT.</span><span>2º CUAT.</span></div></div>
+          <div class="year-col-header"><div class="year-col-top"><span class="col-year-tag">CICLO SUPERIOR</span><span class="col-sem-num">4º AÑO</span></div><div class="year-col-sub"><span>1º CUAT.</span><span>2º CUAT.</span></div></div>
+          <div class="year-col-header"><div class="year-col-top"><span class="col-year-tag">CIERRE & OPTATIVAS</span><span class="col-sem-num">5º AÑO</span></div><div class="year-col-sub"><span>1º CUAT.</span><span>2º CUAT.</span></div></div>
+          <div class="year-col-header col-idiomas-header"><div class="year-col-top"><span class="col-year-tag">EN CUALQUIER MOMENTO</span><span class="col-sem-num">IDIOMAS</span></div><div class="year-col-sub"><span>CUATRIMESTRAL</span></div></div>
+        </div>
+
+        <!-- 6 Columns Matrix Container (Populated by app.js) -->
+        <div class="matrix-container" id="matrixContainer">
+          <!-- Columns 1..6 generated dynamically -->
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- =========================================================================
+       SUBJECT TRACKING & GRADES MODAL (<dialog closedby="any">)
+       ========================================================================= -->
+  <dialog id="subjectDrawer" class="classy-drawer" closedby="any" aria-labelledby="drawerTitle">
+    <div class="drawer-header">
+      <div class="drawer-header-left">
+        <div class="drawer-meta-line">
+          <span class="drawer-code" id="drawerCode">N0001</span>
+          <span id="drawerYearRegimen">1º Año · Anual</span>
+          <span class="drawer-dot-sep">·</span>
+          <span id="drawerFaculty">Humanidades (4)</span>
+          <span class="drawer-status-pill" id="drawerStatusSubtitle">Pendiente de cursar</span>
+        </div>
+        <h2 class="drawer-title" id="drawerTitle">Biología General</h2>
+      </div>
+
+      <div class="drawer-header-right">
+        <button type="button" class="drawer-change-optativa-btn" id="btnDrawerChangeElective" style="display: none;" title="Cambiar la materia seleccionada para este espacio">
+          🔄 Cambiar materia
+        </button>
+        <button type="button" class="drawer-close" id="drawerCloseBtn" aria-label="Cerrar">✕</button>
+      </div>
+    </div>
+
+    <!-- Academic Condition & Grade Configuration Bar -->
+    <div class="drawer-status-bar" id="drawerStatusBar">
+      <div class="status-bar-left">
+        <label for="drawerStatusSelect" class="status-bar-label">
+          <span class="status-bar-icon">⚡</span>
+          <span>Condición:</span>
+        </label>
+        <select id="drawerStatusSelect" class="drawer-status-select" aria-label="Cambiar condición académica de la materia">
+          <option value="aprobada">🟢 Aprobada / Promocionada</option>
+          <option value="cursada_aprobada">🔵 Cursada Aprobada (Regular)</option>
+          <option value="en_curso">🟠 Cursando Actualmente</option>
+          <option value="pendiente">⚪ Pendiente de Cursar</option>
+          <option value="recursa">🔴 Recursa / Desaprobada</option>
+        </select>
+
+        <!-- Grade Editor: visible when status is aprobada -->
+        <div class="drawer-grade-editor" id="drawerGradeEditor">
+          <label for="drawerGradeInput" class="grade-editor-label">Nota:</label>
+          <input type="number" id="drawerGradeInput" class="drawer-grade-input" min="4" max="10" step="0.5" placeholder="-" aria-label="Nota numérica de aprobación">
+          <span class="grade-editor-unit">/ 10</span>
+        </div>
+
+        <!-- Optional Date Input -->
+        <div class="drawer-date-editor" id="drawerDateEditor">
+          <label for="drawerDateInput" class="date-editor-label">Fecha:</label>
+          <input type="text" id="drawerDateInput" class="drawer-date-input" placeholder="Ej: 12/2025" maxlength="16" aria-label="Fecha de aprobación o cursada">
+        </div>
+
+        <!-- Cuatrimestre selector (solo materias con cuatrimestre a elección) -->
+        <div class="drawer-cuat-editor" id="drawerCuatEditor" style="display: none;" role="group" aria-label="Cuatrimestre en que se cursa">
+          <span class="date-editor-label">Cuatrimestre:</span>
+          <button type="button" data-cuat="1">1º</button>
+          <button type="button" data-cuat="2">2º</button>
+        </div>
+      </div>
+
+      <div class="status-bar-right">
+        <span class="status-saved-pill" id="drawerSavedIndicator" title="Guardado automático en tu navegador">
+          <span class="saved-dot">●</span> Guardado local
+        </span>
+      </div>
+    </div>
+
+    <!-- Subject Tracking Body: Correlativas, Eligibility & Personal Notes -->
+    <div class="drawer-body">
+      <!-- Info strip -->
+      <div class="subject-info-strip" id="drawerInfoStrip">
+        <div class="info-chip">
+          <span class="info-chip-label">Régimen</span>
+          <span class="info-chip-value" id="drawerRegimenDesc">Anual</span>
+        </div>
+        <div class="info-chip">
+          <span class="info-chip-label">Facultad / Depto.</span>
+          <span class="info-chip-value" id="drawerFacultyDesc">Depende del Departamento de Ciencias Exactas y Naturales</span>
+        </div>
+      </div>
+
+      <!-- Correlativas Grid -->
+      <div class="correlativas-grid">
+        <section class="correlativa-panel">
+          <div class="panel-header">
+            <h3 class="panel-title">📝 Correlativas para Cursar</h3>
+            <span class="eligibility-badge" id="badgeCanCursar">Habilitada</span>
+          </div>
+          <div class="correlativa-list" id="drawerCorrCursar">
+            <!-- Populated dynamically -->
+          </div>
+        </section>
+
+        <section class="correlativa-panel">
+          <div class="panel-header">
+            <h3 class="panel-title">🎓 Correlativas para Rendir Final</h3>
+            <span class="eligibility-badge" id="badgeCanRendir">Habilitada</span>
+          </div>
+          <div class="correlativa-list" id="drawerCorrRendir">
+            <!-- Populated dynamically -->
+          </div>
+        </section>
+      </div>
+
+      <!-- Unlocks section -->
+      <section class="correlativa-panel unlocks-panel">
+        <div class="panel-header">
+          <h3 class="panel-title">🔓 Materias que habilita</h3>
+          <span class="unlocks-count-tag" id="drawerUnlocksCount">0 materias</span>
+        </div>
+        <div class="unlocks-chips" id="drawerUnlocksList">
+          <!-- Populated dynamically -->
+        </div>
+      </section>
+
+      <!-- Personal Notes section -->
+      <section class="correlativa-panel notes-panel">
+        <div class="panel-header">
+          <h3 class="panel-title">🗒️ Notas personales</h3>
+          <span class="notes-hint">Se guardan automáticamente en este navegador</span>
+        </div>
+        <textarea id="drawerNotesInput" class="drawer-notes-textarea" rows="3" placeholder="Ej: Cátedra, horarios, fechas de parciales, mesa de final, observaciones..."></textarea>
+      </section>
+    </div>
+  </dialog>
+
+  <!-- =========================================================================
+       ELECTIVES / IDIOMAS SELECTOR MODAL (<dialog closedby="any">)
+       ========================================================================= -->
+  <dialog id="electivesModal" class="classy-drawer optativas-modal" closedby="any" aria-labelledby="electivesModalTitle">
+    <div class="optativas-modal-header">
+      <div class="optativas-modal-title-group">
+        <span class="optativas-modal-meta" id="electivesModalSlotMeta">PLAN 2003 · 5º AÑO</span>
+        <h2 class="optativas-modal-title" id="electivesModalTitle">Seleccionar Materia</h2>
+        <p class="optativas-modal-subtitle" id="electivesModalSubtitle">Elige la materia para asignar a este espacio curricular.</p>
+      </div>
+      <button type="button" class="drawer-close" id="electivesModalCloseBtn" aria-label="Cerrar modal">✕</button>
+    </div>
+
+    <div class="optativas-modal-body">
+      <div class="optativas-grid" id="electivesListContainer">
+        <!-- Populated dynamically -->
+      </div>
+    </div>
+
+    <div class="optativas-modal-footer">
+      <button type="button" class="btn-clear-optativa" id="btnClearElective">✕ Quitar selección / Dejar libre</button>
+      <span class="optativas-footer-hint">Las notas y estados elegidos se conservan en memoria local</span>
+    </div>
+  </dialog>
+
+  <!-- =========================================================================
+       SIDE MENU DRAWER (<dialog closedby="any">): Responsive Controls & Filters
+       ========================================================================= -->
+  <dialog id="sideMenuDrawer" class="side-menu-drawer" closedby="any" aria-labelledby="sideMenuTitle">
+    <div class="side-menu-header">
+      <div class="side-menu-title-group">
+        <span class="side-menu-meta">PANEL DE CONTROL</span>
+        <h2 class="side-menu-title" id="sideMenuTitle">Resumen y Filtros</h2>
+      </div>
+      <button type="button" class="drawer-close" id="sideMenuCloseBtn" aria-label="Cerrar menú">✕</button>
+    </div>
+
+    <div class="side-menu-body">
+      <!-- Section: Academic Telemetry Metrics -->
+      <div class="side-menu-section">
+        <h3 class="side-menu-section-title">Rendimiento Académico</h3>
+        <div class="side-telemetry-grid">
+          <div class="side-telemetry-card">
+            <span class="side-telemetry-label">Promedio General</span>
+            <div class="side-telemetry-val highlight-gpa">
+              <span id="sideGpa">0.00</span>
+              <span class="side-telemetry-sub">/ 10</span>
+            </div>
+          </div>
+          <div class="side-telemetry-card">
+            <span class="side-telemetry-label">Avance de Carrera</span>
+            <div class="side-telemetry-val">
+              <span id="sideAvance">0.0%</span>
+              <span class="side-telemetry-sub" id="sideMateriasRatio">(0/29)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section: State Filters -->
+      <div class="side-menu-section">
+        <div class="side-section-header-flex">
+          <h3 class="side-menu-section-title">Filtrar por Estado</h3>
+          <button type="button" class="side-clear-filter-btn" id="btnSideClearFilter">Limpiar</button>
+        </div>
+        <div class="side-filters-list">
+          <button type="button" class="legend-chip side-filter-chip" data-filter="aprobada" title="Filtrar materias aprobadas">
+            <span class="dot dot-aprobada"></span>
+            <span class="filter-chip-text">Aprobadas</span>
+            <span class="chip-count" id="chipSideAprobadas">0</span>
+          </button>
+          <button type="button" class="legend-chip side-filter-chip" data-filter="en_curso" title="Filtrar materias en curso">
+            <span class="dot dot-en-curso"></span>
+            <span class="filter-chip-text">En curso</span>
+            <span class="chip-count" id="chipSideEnCurso">0</span>
+          </button>
+          <button type="button" class="legend-chip side-filter-chip" data-filter="cursada_aprobada" title="Filtrar materias cursadas">
+            <span class="dot dot-cursada"></span>
+            <span class="filter-chip-text">Cursadas</span>
+            <span class="chip-count" id="chipSideCursada">0</span>
+          </button>
+          <button type="button" class="legend-chip side-filter-chip" data-filter="pendiente" title="Filtrar materias pendientes">
+            <span class="dot dot-pendiente"></span>
+            <span class="filter-chip-text">Pendientes</span>
+            <span class="chip-count" id="chipSidePendientes">29</span>
+          </button>
+          <button type="button" class="legend-chip side-filter-chip" data-filter="recursa" title="Filtrar materias recursadas">
+            <span class="square-fail"></span>
+            <span class="filter-chip-text">Recursa</span>
+            <span class="chip-count" id="chipSideRecursa">0</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Section: Backup & Restore -->
+      <div class="side-menu-section">
+        <h3 class="side-menu-section-title">Respaldo de Notas</h3>
+        <div class="side-actions-group">
+          <button type="button" class="side-action-btn" id="btnSideExportNotes">
+            <span class="side-action-icon">💾</span>
+            <span>Guardar respaldo (JSON)</span>
+          </button>
+          <label class="side-action-btn" id="btnSideImportNotesLabel">
+            <span class="side-action-icon">⬆</span>
+            <span>Cargar JSON o Guaraní (PDF/XLS/CSV)</span>
+            <input type="file" id="inputSideImportNotes" accept=".json,application/json,.pdf,.xls,.xlsx,.csv,.tsv,.txt" style="display: none;">
+          </label>
+          <button type="button" class="side-action-btn side-btn-danger" id="btnSideResetNotes">
+            <span class="side-action-icon">↺</span>
+            <span>Restablecer datos</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Section: Plan References -->
+      <div class="side-menu-section side-menu-footer-links">
+        <div class="side-plan-note">
+          <strong>Plan 2003 · Código 012</strong><br>
+          Profesorado de Ciencias Biológicas · FaHCE · UNLP.<br>
+          Tus datos se guardan localmente en tu navegador.
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Floating Action Bar for Mobile Touch Selection -->
+  <div id="mobileActionPill" class="mobile-action-pill" aria-live="polite">
+    <div class="mobile-pill-info">
+      <span class="mobile-pill-code" id="mobilePillCode">N0001</span>
+      <span class="mobile-pill-name" id="mobilePillName">Biología General</span>
+    </div>
+    <button type="button" class="mobile-pill-btn" id="mobilePillBtn">
+      <span>Editar nota</span>
+      <span class="mobile-pill-arrow">↗</span>
+    </button>
+    <button type="button" class="mobile-pill-close" id="mobilePillClose" aria-label="Cerrar selección">✕</button>
+  </div>
+
+  <!-- Toast Notice -->
+  <div id="toastNotice" class="toast-notice" aria-live="polite"></div>
+
+  <!-- External Parsers for SIU Guaraní Academic History (loaded on demand if user imports PDF/XLS) -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
